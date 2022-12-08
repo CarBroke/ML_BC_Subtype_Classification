@@ -23,6 +23,9 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.multiclass import OneVsRestClassifier
 from itertools import cycle
 from sklearn import svm, datasets
+import hiplot as hip
+from pySankey import sankey
+from matplotlib.patches import Patch
 
 st.title("METABRIC Breast Cancer Machine Learning App")
 st.header('Created by Carson Broeker')
@@ -42,9 +45,41 @@ st.image("PAM50_ROC_Curve.png")
 
 #st.write("Now, create your own machine learning model! First, decide what classifier system you want to use.")
 
+df1 = pd.read_csv("data_clinical_patient.txt", sep="\t", skiprows=[1,2,3,4])
+df1 = df1.dropna()
 df = pd.read_csv("Downsampled_Metabric_Microarray.csv")
 species = df.pop("CLAUDIN_SUBTYPE")
 df = df.T
+
+
+option_category = st.selectbox(
+    'Play with each category to see how the different subtypes of breast cancer relate to other clinical aspects.',
+    ['Cellularity',
+ 'Chemotherapy',
+ 'ER status measured by IHC',
+ 'HER2 status measured by SNP6',
+ 'Hormone Therapy',
+ 'Inferred Menopausal State',
+ 'Sex',
+ 'Integrative Cluster',
+ 'Overall Survival Status',
+ 'Pam50 + Claudin-low subtype',
+ '3-Gene classifier subtype',
+ "Patient's Vital Status",
+ 'Primary Tumor Laterality',
+ 'Radio Therapy',
+ 'Tumor Other Histologic Subtype',
+ 'Type of Breast Surgery',
+ 'Relapse Free Status'])
+
+st.set_option('deprecation.showPyplotGlobalUse', False)
+
+sankey_fig = sankey.sankey(
+    df1["Pam50 + Claudin-low subtype"], df1[option_category], 
+    aspect=20, fontsize=12, #figureName="Breast_Cancer"
+)
+st.pyplot(fig=sankey_fig)
+plt.close()
 
 random_number = st.slider("Now make your own machine learning model and see what parameters affect its accuracy. First, \
     choose the number of genes you want to train the model on.", min_value=1, max_value=250, value=50, step=1)
@@ -69,7 +104,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_fractio
 classifier_options = st.selectbox(
     "Next, decide what classifier system you want to use and test its accuracy.",
     [neighbors.KNeighborsClassifier(),
-svm.SVC(kernel='linear', probability=True, random_state=0),
+svm.SVC(kernel='rbf', probability=True, random_state=0),
 GaussianProcessClassifier(),
 DecisionTreeClassifier(),
 RandomForestClassifier(),
@@ -127,3 +162,28 @@ plt.title('SVM Trained on '+str(random_number)+' Random Genes')
 plt.legend(loc="lower right")
 ax = plt.gca()
 st.pyplot(ax.figure)
+plt.close()
+
+st.write("However, the previous example is supervised learning. What does the data look like when it doesn't have defined categories available? \
+    This is where unsupervised hierarchical clustering comes into play. It simply clusters samples together based on how similar its features are. \
+        If the genes selected have no predicting power, it will simply look like static and noise. But, if there is predictive power, \
+            you will see large blocks of one color. Check how many samples of each subtype cluster together at the top as a gauge of predictive power! \
+                Unlike supervised learning where weights for non-predictive features can be assigned to essentially zero, all features are weighted equally here.")
+
+#species = df.pop("Pam50 + Claudin-low subtype")
+lut = dict(zip(species.unique(), ["blue","pink", "yellow", "red", "#98F5FF", "green", "black"]))
+row_colors = species.map(lut)
+#newdf = newdf.astype('float64')
+#df_z = newdf.apply(zscore)
+#df_x = newdf.T
+newdf = df.T
+
+cluster_fig = sns.clustermap(newdf, vmin=-3, vmax=3, cmap='icefire', method='ward', z_score=0, \
+    col_colors=row_colors, yticklabels=False, xticklabels=False)
+
+handles = [Patch(facecolor=lut[name]) for name in lut]
+plt.legend(handles, lut, title="Intrinsic Subtype", fontsize='large', \
+    bbox_to_anchor=(1,1), bbox_transform=plt.gcf().transFigure, loc='upper right')
+
+st.pyplot(cluster_fig)
+plt.close()
